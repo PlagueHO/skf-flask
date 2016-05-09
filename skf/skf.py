@@ -19,7 +19,7 @@
     along with this program. If not, see <http://www.gnu.org/licenses/>.
 """
 
-import os, markdown, datetime, string, base64, re, sys, re, requests, mimetypes, smtplib
+import os, markdown, datetime, string, base64, re, sys, re, requests, mimetypes, smtplib, pdb
 from OpenSSL import SSL, rand
 from docx import Document
 from BeautifulSoup import BeautifulSoup
@@ -27,7 +27,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.shared import Inches
 from functools import wraps 
 from sqlite3 import dbapi2 as sqlite3
-from flask.ext.bcrypt import Bcrypt
+from flask_bcrypt import Bcrypt
 from flask import Flask, request, session, g, redirect, url_for, abort, \
      render_template, flash, Markup, make_response
      
@@ -317,34 +317,34 @@ def create_account():
         for verify in check:
             userID = verify[1]
             if verify[2] == "false":
-				if str(verify[0]) == token:
-							#update the counter and blocker table with new values 
-					db.execute('UPDATE users SET access=?, password=?, activated=? WHERE accessToken=? AND userID=?',
-							   ["true", hashed, "true", token , userID])
-					db.commit()
-					#Insert record in counter table for the counting of malicious inputs
-					db.execute('INSERT INTO counter (userID, countEvil, block) VALUES (?, ?, ?)',
-								[userID, 0, 0])
-					db.commit()
-				
-					#Create standard group  for this user to assign himself to
-					date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-					db.execute('INSERT INTO groups (ownerID, groupName, timestamp) VALUES (?, ?, ?)',
-								[userID, "privateGroup", date])
-					db.commit()
-				
-					#Select this groupID so we can assign the user to this group automatically
-					cur = db.execute('SELECT groupID from groups where ownerID=?',
-								[userID])
-					group = cur.fetchall()
-					for theID in group:
-						groupID = theID[0]
-							
-					#Now we assign the user to the group
-					date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-					db.execute('INSERT INTO groupMembers (userID, groupID, ownerID) VALUES (?, ?, ?)',
-								[userID, groupID, userID])
-					db.commit()
+                if str(verify[0]) == token:
+                            #update the counter and blocker table with new values 
+                    db.execute('UPDATE users SET access=?, password=?, activated=? WHERE accessToken=? AND userID=?',
+                               ["true", hashed, "true", token , userID])
+                    db.commit()
+                    #Insert record in counter table for the counting of malicious inputs
+                    db.execute('INSERT INTO counter (userID, countEvil, block) VALUES (?, ?, ?)',
+                                [userID, 0, 0])
+                    db.commit()
+                
+                    #Create standard group  for this user to assign himself to
+                    date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+                    db.execute('INSERT INTO groups (ownerID, groupName, timestamp) VALUES (?, ?, ?)',
+                                [userID, "privateGroup", date])
+                    db.commit()
+                
+                    #Select this groupID so we can assign the user to this group automatically
+                    cur = db.execute('SELECT groupID from groups where ownerID=?',
+                                [userID])
+                    group = cur.fetchall()
+                    for theID in group:
+                        groupID = theID[0]
+                            
+                    #Now we assign the user to the group
+                    date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+                    db.execute('INSERT INTO groupMembers (userID, groupID, ownerID) VALUES (?, ?, ?)',
+                                [userID, groupID, userID])
+                    db.commit()
                
         if not check:
             #if not the right pin, the user account wil be deleted if not exsisting
@@ -382,7 +382,7 @@ def login():
         entries = cur.fetchall()
         for entry in entries:
             passwordHash = entry[3]  
-            userID 		 = entry[0]         
+            userID       = entry[0]         
             #Do encryption
             if bcrypt.check_password_hash(passwordHash, password):
                 log("Valid username/password submit", "SUCCESS", "HIGH")  
@@ -434,8 +434,8 @@ def countAttempts(counter):
         redirect = True
         db.execute('UPDATE users SET access=? WHERE userID=?',
                ["false", session['userID']])
-    	db.commit()
-    	renderwhat = "/warning.html"
+        db.commit()
+        renderwhat = "/warning.html"
     
     #update the counter and blocker table with new values 
     db.execute('UPDATE counter SET countEvil=?, block=? WHERE userID=?',
@@ -457,20 +457,20 @@ def permissions(fromFunction):
     
     """Do DB query to see if username exists"""
     cur = db.execute('SELECT a.username, a.userID, a.password, a.privilegeID, b.privilegeID, b.privilege FROM users as a JOIN privileges as b ON a.privilegeID = b.privilegeID WHERE a.userID =? and a.access="true" ',
-    				       [session['userID']])
+                           [session['userID']])
     entries = cur.fetchall()
     for entry in entries:
-    	permissions = entry[5]
-    	
-    permissionsGranted = string.split(permissions, ':')	
+        permissions = entry[5]
+        
+    permissionsGranted = string.split(permissions, ':') 
     permissionsNeeded  = string.split(fromFunction, ':')
     
     count = len(permissionsNeeded)
     counthits = 0
-	
+    
     for val in permissionsGranted:
-	    if val in fromFunction:
-	        counthits +=1
+        if val in fromFunction:
+            counthits +=1
     if counthits >= count:
         return permissions
     else:
@@ -676,9 +676,9 @@ def user_access():
     safe_userID   = encodeInput(request.form['userID'])
     safe_access = encodeInput(request.form['access'])
     db.execute('UPDATE users SET access=? WHERE userID=?',
-		   [safe_access, safe_userID])
+           [safe_access, safe_userID])
     db.execute('UPDATE counter SET countEvil=? AND block=? WHERE userID=?',
-		   [0, 0, safe_userID])
+           [0, 0, safe_userID])
     db.commit()
     
     return redirect(url_for('users_manage'))
@@ -742,7 +742,7 @@ def group_users():
     
     """select users by assigned groups for display"""
     cur3 = db.execute('SELECT u.username, u.userID, g.groupName, g.groupID, m.groupID, m.userID, m.timestamp, g.ownerID from users as u JOIN groups AS g ON g.groupID = m.groupID JOIN groupMembers as m ON u.userID = m.userID  WHERE g.ownerID=? AND u.userName !=? ORDER BY g.groupName ',
-    				   [session['userID'], session['userName']])
+                       [session['userID'], session['userName']])
     summary = cur3.fetchall()
 
     return render_template('group-users.html', groups=groups, users=users, summary=summary, csrf_token=session['csrf_token'])
@@ -762,24 +762,24 @@ def group_add_users():
     """Check is submitted groupID is owned by user"""
     db = get_db()
     cur3 = db.execute('SELECT groupID from groups where ownerID=?',
-    				   [session['userID']])
+                       [session['userID']])
     owner = cur3.fetchall()
     for val in owner:
-	    if int(safe_groupID) == int(val[0]):
-			f = request.form
-			for key in f.keys():
-				for value in f.getlist(key):
-					found = key.find("test")
-					if found != -1:
-						db = get_db()
-						date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-						items = value.split("-")
-						userID = items[0]
-						valNum(userID, 12)
-						safe_userID = encodeInput(userID)
-						db.execute('INSERT INTO groupMembers (timestamp, groupID, userID, ownerID) VALUES (?, ?, ?, ?)',
-							   [date, safe_groupID, safe_userID, session['userID']])
-						db.commit()
+        if int(safe_groupID) == int(val[0]):
+            f = request.form
+            for key in f.keys():
+                for value in f.getlist(key):
+                    found = key.find("test")
+                    if found != -1:
+                        db = get_db()
+                        date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+                        items = value.split("-")
+                        userID = items[0]
+                        valNum(userID, 12)
+                        safe_userID = encodeInput(userID)
+                        db.execute('INSERT INTO groupMembers (timestamp, groupID, userID, ownerID) VALUES (?, ?, ?, ?)',
+                               [date, safe_groupID, safe_userID, session['userID']])
+                        db.commit()
     redirect_url = '/group-users'
     return redirect(redirect_url)
 
@@ -883,7 +883,7 @@ def assign_group():
     safe_projectID = encodeInput(request.form['projectID'])
     """Check is submitted groupID is owned by user"""
     cur = db.execute('SELECT groupID from groups where ownerID=?',
-    				   [session['userID']])
+                       [session['userID']])
     owner = cur.fetchall()
     for val in owner:
         print(val)
@@ -991,13 +991,13 @@ def function_del():
     db = get_db()
     #First check if the user is allowed to delete this parameter
     cur = db.execute('SELECT p.projectID, p.groupID, m.groupID, m.userID from projects as p JOIN groupMembers as m ON m.groupID = p.groupID where m.userID=?',
-    				   [session['userID']])
+                       [session['userID']])
     for val in cur:
-	    if int(id) == int(val[0]):
-			db.execute("DELETE FROM parameters WHERE projectID=? AND paramID=?",
-					   [id, id_param])
-			db.commit()
-			redirect_url = "/project-functions/"+str(id)
+        if int(id) == int(val[0]):
+            db.execute("DELETE FROM parameters WHERE projectID=? AND paramID=?",
+                       [id, id_param])
+            db.commit()
+            redirect_url = "/project-functions/"+str(id)
     return redirect(redirect_url)
 
 
@@ -1015,33 +1015,33 @@ def add_function():
     valAlphaNum(request.form['functionName'], 1)
     valAlphaNum(request.form['functionDesc'], 1)
     safe_fName = encodeInput(request.form['functionName'])
-    safe_fDesc = encodeInput(request.form['functionDesc'])	
+    safe_fDesc = encodeInput(request.form['functionDesc'])  
     
     #Check is submitted projectID is owned by user
     db = get_db()
     cur3 = db.execute('SELECT p.projectID, p.groupID, m.groupID, m.userID from projects as p JOIN groupMembers as m ON m.groupID = p.groupID where m.userID=?',
-    				   [session['userID']])
+                       [session['userID']])
     owner = cur3.fetchall()
     for val in owner:
         print(val)
         if int(id) == int(val[0]):
-			f = request.form
-			for key in f.keys():
-				for value in f.getlist(key):
-						found = key.find("test")
-						if found != -1:
-							db = get_db()
-							date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-							items = value.split("-")
-							techID = items[2]
-							vulnID = items[0]
-							valAlphaNum(techID, 12)
-							valAlphaNum(vulnID, 12)
-							safe_techID = encodeInput(techID)
-							safe_vulnID = encodeInput(vulnID)
-							db.execute('INSERT INTO parameters (entryDate, functionName, functionDesc, techVuln, tech, projectID, userID) VALUES (?, ?, ?, ?, ?, ?, ?)',
-								   [date, safe_fName, safe_fDesc, safe_vulnID, safe_techID, id, session['userID']])
-							db.commit()
+            f = request.form
+            for key in f.keys():
+                for value in f.getlist(key):
+                        found = key.find("test")
+                        if found != -1:
+                            db = get_db()
+                            date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+                            items = value.split("-")
+                            techID = items[2]
+                            vulnID = items[0]
+                            valAlphaNum(techID, 12)
+                            valAlphaNum(vulnID, 12)
+                            safe_techID = encodeInput(techID)
+                            safe_vulnID = encodeInput(vulnID)
+                            db.execute('INSERT INTO parameters (entryDate, functionName, functionDesc, techVuln, tech, projectID, userID) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                                   [date, safe_fName, safe_fDesc, safe_vulnID, safe_techID, id, session['userID']])
+                            db.commit()
     redirect_url = '/project-functions/'+str(id) 
     return redirect(redirect_url)
 
@@ -1060,41 +1060,41 @@ def add_checklist():
     #Check is submitted projectID is owned by user
     db = get_db()
     cur3 = db.execute('SELECT p.projectID, p.groupID, m.groupID, m.userID from projects as p JOIN groupMembers as m ON m.groupID = p.groupID where m.userID=?',
-    				   [session['userID']])
+                       [session['userID']])
     owner = cur3.fetchall()
     for val in owner:
         print(val)
         if int(request.form['projectID']) == int(val[0]):
-			f = request.form
-			for key in f.keys():
-				for value in f.getlist(key):
-					found = key.find("vuln")
-					if found != -1:
-						listID = "listID"+str(i)
-						answerID = "answer"+str(i)
-						questionID = "questionID"+str(i) 
-						vulnID = "vulnID"+str(i)
-						valAlphaNum(request.form[answerID], 12)
-						valNum(request.form[questionID], 12)
-						valNum(request.form[vulnID], 12)
-						valAlphaNum(request.form[listID], 12)
-						valAlphaNum(request.form['projectName'], 12)
-						safe_answerID = encodeInput(request.form[answerID])
-						safe_questionID = encodeInput(request.form[questionID])
-						safe_vulnID = encodeInput(request.form[vulnID])
-						safe_listID = encodeInput(request.form[listID])
-						safe_pName = encodeInput(request.form['projectName'])
-						safe_id = encodeInput(request.form['projectID'])
-						#print '        '+answerID+'="'+str(safe_answerID)+'",'
-						#print '        '+questionID+'="'+str(safe_questionID)+'",'
-						#print '        '+vulnID+'="'+str(safe_vulnID)+'",'
-						#print '        '+listID+'="'+str(safe_listID)+'",'
-						date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-						db = get_db()
-						db.execute('INSERT INTO questionlist (entryDate, answer, projectName, projectID, questionID, vulnID, listName, userID) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-								   [date, safe_answerID, safe_pName, safe_id, safe_questionID, safe_vulnID, safe_listID, session['userID']])
-						db.commit()
-						i += 1
+            f = request.form
+            for key in f.keys():
+                for value in f.getlist(key):
+                    found = key.find("vuln")
+                    if found != -1:
+                        listID = "listID"+str(i)
+                        answerID = "answer"+str(i)
+                        questionID = "questionID"+str(i) 
+                        vulnID = "vulnID"+str(i)
+                        valAlphaNum(request.form[answerID], 12)
+                        valNum(request.form[questionID], 12)
+                        valNum(request.form[vulnID], 12)
+                        valAlphaNum(request.form[listID], 12)
+                        valAlphaNum(request.form['projectName'], 12)
+                        safe_answerID = encodeInput(request.form[answerID])
+                        safe_questionID = encodeInput(request.form[questionID])
+                        safe_vulnID = encodeInput(request.form[vulnID])
+                        safe_listID = encodeInput(request.form[listID])
+                        safe_pName = encodeInput(request.form['projectName'])
+                        safe_id = encodeInput(request.form['projectID'])
+                        #print '        '+answerID+'="'+str(safe_answerID)+'",'
+                        #print '        '+questionID+'="'+str(safe_questionID)+'",'
+                        #print '        '+vulnID+'="'+str(safe_vulnID)+'",'
+                        #print '        '+listID+'="'+str(safe_listID)+'",'
+                        date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+                        db = get_db()
+                        db.execute('INSERT INTO questionlist (entryDate, answer, projectName, projectID, questionID, vulnID, listName, userID) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                                   [date, safe_answerID, safe_pName, safe_id, safe_questionID, safe_vulnID, safe_listID, session['userID']])
+                        db.commit()
+                        i += 1
     redirect_url = "/results-checklists"
     return redirect(redirect_url)
 
@@ -1146,18 +1146,17 @@ def project_checklists(project_id):
     advanced_content = []
     full_file_paths = []
     full_file_paths = get_filepaths(os.path.join(app.root_path, "markdown/checklists"))
-    full_file_paths.sort()
-    for path in full_file_paths:
+    full_file_paths.sort()   
+    """for path in full_file_paths:
        found = path.find("ASVS-level-1")
-       if found != -1:
+       if found != -1:            
             owasp_org_path = path
             owasp_list_lvl1 = "ASVS-level-1"
-            owasp_path_lvl1 = path.split("-")
-            owasp_kb = owasp_path_lvl1[7]
-            owasp_id = get_num(owasp_path_lvl1[1])
-            #owasp_items_lvl1.append(owasp_checklist_name)
+            owasp_path_lvl1 = path.split("--")
+            owasp_kb = owasp_path_lvl1[2]
+            owasp_id = get_num(owasp_path_lvl1[0])
             owasp_ids_lvl1.append(owasp_id)
-            owasp_items_lvl1_ygb.append(owasp_path_lvl1[9])
+            owasp_items_lvl1_ygb.append(owasp_path_lvl1[3])
             owasp_kb_ids_lvl1.append(owasp_kb)
             filemd = open(owasp_org_path, 'r').read()
             owasp_content_lvl1.append(Markup(markdown.markdown(filemd)))
@@ -1175,13 +1174,12 @@ def project_checklists(project_id):
        if found != -1:
             owasp_org_path = path
             owasp_list_lvl2 = "ASVS-level-2"
-            owasp_path_lvl2 = path.split("-")
-            owasp_kb = owasp_path_lvl2[7]
-            owasp_id = get_num(owasp_path_lvl2[1])
-            #owasp_items_lvl2.append(owasp_checklist_name)
+            owasp_path_lvl2 = path.split("--")
+            owasp_kb = owasp_path_lvl2[2]
+            owasp_id = get_num(owasp_path_lvl2[0])
             owasp_ids_lvl2.append(owasp_id)
             owasp_kb_ids_lvl2.append(owasp_kb)
-            owasp_items_lvl2_ygb.append(owasp_path_lvl2[9])
+            owasp_items_lvl2_ygb.append(owasp_path_lvl2[3])
             filemd = open(owasp_org_path, 'r').read()
             owasp_content_lvl2.append(Markup(markdown.markdown(filemd)))
             full_file_paths_kb = get_filepaths(os.path.join(app.root_path, "markdown/knowledge_base"))
@@ -1198,13 +1196,12 @@ def project_checklists(project_id):
        if found != -1:
             owasp_org_path = path
             owasp_list_lvl3 = "ASVS-level-3"
-            owasp_path_lvl3 = path.split("-")
-            owasp_kb = owasp_path_lvl3[7]
-            owasp_id = get_num(owasp_path_lvl3[1])
-            #owasp_items_lvl3.append(owasp_checklist_name)
+            owasp_path_lvl3 = path.split("--")
+            owasp_kb = owasp_path_lvl3[2]
+            owasp_id = get_num(owasp_path_lvl3[0])
             owasp_ids_lvl3.append(owasp_id)
             owasp_kb_ids_lvl3.append(owasp_kb)
-            owasp_items_lvl3_ygb.append(owasp_path_lvl3[9])
+            owasp_items_lvl3_ygb.append(owasp_path_lvl3[3])
             filemd = open(owasp_org_path, 'r').read()
             owasp_content_lvl3.append(Markup(markdown.markdown(filemd)))
             full_file_paths_kb = get_filepaths(os.path.join(app.root_path, "markdown/knowledge_base"))
@@ -1215,50 +1212,93 @@ def project_checklists(project_id):
                 if int(owasp_kb) == int(path_vuln):
                     filemd = open(org_path, 'r').read()
                     description = filemd.split("**") 
-                    owasp_content_desc_lvl3.append(description[2])
-    for path in full_file_paths:
-       found = path.find("CS_basic_audit")
-       if found != -1:
-            basic_org_path = path
-            basic_list = "CS_basic_audit"
-            basic_path = path.split("-")
-            basic_kb = basic_path[5]
-            basic_checklist_name = basic_path[3]
-            basic_id = get_num(basic_path[1])
-            basic_items.append(basic_checklist_name)
-            basic_ids.append(basic_id)
-            basic_kb_ids.append(basic_kb)
-            filemd = open(basic_org_path, 'r').read()
-            basic_content.append(Markup(markdown.markdown(filemd)))
-    for path in full_file_paths:
-       found = path.find("CS_advanced_audit")
-       if found != -1:
-            advanced_org_path = path
-            advanced_list = "CS_advanced_audit"
-            advanced_path = path.split("-")
-            advanced_kb = advanced_path[5]
-            advanced_name = advanced_path[3]
-            advanced_id = get_num(advanced_path[1])
-            advanced_items.append(advanced_name)
-            advanced_ids.append(advanced_id)
-            advanced_kb_ids.append(advanced_kb)
-            filemd = open(advanced_org_path, 'r').read()
-            advanced_content.append(Markup(markdown.markdown(filemd)))
+                    owasp_content_desc_lvl3.append(description[2])  
     for path in full_file_paths:
        found = path.find("custom")
        if found != -1:
             custom_org_path = path
             custom_list = "custom"
-            custom_path = path.split("-")
-            custom_kb = custom_path[5]
-            custom_name = custom_path[3]
-            custom_id = get_num(custom_path[1])
+            custom_path = path.split("--")
+            custom_kb = custom_path[2]
+            custom_name = custom_path[1]
+            custom_id = get_num(custom_path[0])
             custom_items.append(custom_name)
             custom_ids.append(custom_id)
             custom_kb_ids.append(custom_kb)
             filemd = open(custom_org_path, 'r').read()
             custom_content.append(Markup(markdown.markdown(filemd)))
+    """        
+    asvs1 = retrieve_checklist_details("ASVS-level-1", full_file_paths)    
+    owasp_ids_lvl1 = asvs1.entry_ids
+    owasp_kb_ids_lvl1 = asvs1.entry_kb_ids
+    owasp_content_lvl1 = asvs1.entry_content
+    owasp_content_desc_lvl3 = asvs1.knowledgebaseDescription
+    owasp_items_lvl1_ygb = asvs1.ygb
+    
+    asvs2 = retrieve_checklist_details("ASVS-level-2", full_file_paths)   
+    owasp_ids_lvl2 = asvs2.entry_ids
+    owasp_kb_ids_lvl2 = asvs2.entry_kb_ids
+    owasp_content_lvl2 = asvs2.entry_content
+    owasp_content_desc_lvl3 = asvs2.knowledgebaseDescription
+    owasp_items_lvl2_ygb = asvs2.ygb
+    
+    asvs3 = retrieve_checklist_details("ASVS-level-3", full_file_paths)    
+    owasp_ids_lvl3 = asvs3.entry_ids
+    owasp_kb_ids_lvl3 = asvs3.entry_kb_ids
+    owasp_content_lvl3 = asvs3.entry_content
+    owasp_content_desc_lvl3 = asvs3.knowledgebaseDescription
+    owasp_items_lvl3_ygb = asvs3.ygb
+    
+    custom = retrieve_checklist_details("custom", full_file_paths)
+    custom_items = custom.entry_items
+    custom_ids = custom.entry_ids
+    custom_kb_ids = custom.entry_kb_ids
+    custom_content = custom.entry_content  
+    
     return render_template('project-checklists.html', csrf_token=session['csrf_token'],  **locals())
+
+class Checklist(object):
+    entry_items = []
+    entry_ids = []
+    entry_kb_ids = []
+    entry_content = []
+    knowledgebaseDescription = []
+    ygb = []
+
+def retrieve_checklist_details(pathName, full_file_paths):
+    checklist = Checklist
+    for path in full_file_paths:
+       found = path.find(pathName)
+       if found != -1:
+            entry_path = path.split("--")            
+            entry_kb = entry_path[2]
+            entry_name = entry_path[1]
+            entry_id = get_num(entry_path[0])
+            entry_org_path = path
+            checklist.custom_list = pathName
+            filemd = open(entry_org_path, 'r').read()
+
+            if len(entry_path) > 3:
+                checklist.ygb.append(entry_path[3])
+                
+            checklist.entry_items.append(entry_name)
+            checklist.entry_ids.append(entry_id)
+            checklist.entry_kb_ids.append(entry_kb)          
+            checklist.entry_content.append(Markup(markdown.markdown(filemd)))
+            
+            #Add knowledgebase information to the hover
+            #All items must have a description or this will get out of sync when rendering
+            full_file_paths_kb = get_filepaths(os.path.join(app.root_path, "markdown/knowledge_base"))
+            for path in full_file_paths_kb:
+                org_path = path
+                path_kb = path.split("markdown")
+                path_vuln = get_num(path_kb[1])
+                if int(entry_kb) == int(path_vuln):
+                    filemd = open(org_path, 'r').read()
+                    description = filemd.split("**") 
+                    checklist.knowledgebaseDescription.append(description[2])                    
+    return checklist
+    
 
 @app.route('/results-checklists', methods=['GET'])
 @security
@@ -1304,7 +1344,7 @@ def functions_del():
     
     #Use select in order to see if this user is linked to project
     cur = db.execute("SELECT p.projectID, p.groupID, m.groupID, m.userID FROM projects AS p JOIN groupMembers AS m ON m.groupID = p.groupID WHERE m.userID=?  ",
-               		[session['userID']])
+                    [session['userID']])
     entries = cur.fetchall()
     for entry in entries:
         if int(entry[0]) == int(safe_projectID):
@@ -1328,13 +1368,13 @@ def checklists_del():
     db = get_db()
     #Use select in order to see if this user is linked to project
     cur = db.execute("SELECT p.projectID, p.groupID, m.groupID, m.userID FROM projects AS p JOIN groupMembers AS m ON m.groupID = p.groupID WHERE m.userID=?  ",
-               		[session['userID']])
+                    [session['userID']])
     entries = cur.fetchall()
     for entry in entries:
         if int(entry[0]) == int(safe_projectID):
-			db.execute("DELETE FROM questionlist WHERE entryDate=? AND projectID=? ",
-				   [safe_entryDate, safe_projectID])
-			db.commit()
+            db.execute("DELETE FROM questionlist WHERE entryDate=? AND projectID=? ",
+                   [safe_entryDate, safe_projectID])
+            db.commit()
     return redirect("/results-checklists")
 
 
