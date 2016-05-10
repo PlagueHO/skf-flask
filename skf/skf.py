@@ -30,8 +30,19 @@ from sqlite3 import dbapi2 as sqlite3
 from flask_bcrypt import Bcrypt
 from flask import Flask, request, session, g, redirect, url_for, abort, \
      render_template, flash, Markup, make_response
-     
-     
+
+class Checklist:
+    def __init__(self):
+        self.entry_items = []
+        self.entry_ids = []
+        self.entry_kb_ids = []
+        self.entry_content = []
+        self.knowledgebaseDescription = []
+        self.ygb = []
+        #TODO: Shift these values into a file/folder format like the rest of the data
+        self.checklistName = ""
+        self.checklistDescription = ""
+        self.pathName = ""
 
 # create the application
 app = Flask(__name__)
@@ -1048,6 +1059,7 @@ def add_function():
 @app.route('/project-checklist-add', methods=['POST'])
 @security
 def add_checklist():
+    pdb.set_trace()
     """add project checklist"""
     if not session.get('logged_in'):
         log("User with no valid session tries access to page /project-checklist-add", "FAIL", "HIGH")
@@ -1085,10 +1097,6 @@ def add_checklist():
                         safe_listID = encodeInput(request.form[listID])
                         safe_pName = encodeInput(request.form['projectName'])
                         safe_id = encodeInput(request.form['projectID'])
-                        #print '        '+answerID+'="'+str(safe_answerID)+'",'
-                        #print '        '+questionID+'="'+str(safe_questionID)+'",'
-                        #print '        '+vulnID+'="'+str(safe_vulnID)+'",'
-                        #print '        '+listID+'="'+str(safe_listID)+'",'
                         date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
                         db = get_db()
                         db.execute('INSERT INTO questionlist (entryDate, answer, projectName, projectID, questionID, vulnID, listName, userID) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
@@ -1131,7 +1139,7 @@ def project_checklists(project_id):
     asvs3.checklistName = "OWASP ASVS Level 3"
     asvs3.checklistDescription = "OWASP Application Security Verification Standard Level 3."
     
-    pci = retrieve_checklist_details("custom", full_file_paths)
+    pci = retrieve_checklist_details("PCIDSS32", full_file_paths)
     pci.checklistName = "PCI DSS 3.2"
     pci.checklistDescription = "PCI DSS 3.2 audit list"
     
@@ -1142,18 +1150,6 @@ def project_checklists(project_id):
     checklists.append(pci)
     
     return render_template('project-checklists.html', csrf_token=session['csrf_token'],  **locals())
-
-class Checklist:
-    def __init__(self):
-        self.entry_items = []
-        self.entry_ids = []
-        self.entry_kb_ids = []
-        self.entry_content = []
-        self.knowledgebaseDescription = []
-        self.ygb = []
-        #TODO: Shift these values into a file/folder format like the rest of the data
-        self.checklistName = ""
-        self.checklistDescription = ""
 
 def retrieve_checklist_details(pathName, full_file_paths):
     checklist = Checklist()
@@ -1170,7 +1166,8 @@ def retrieve_checklist_details(pathName, full_file_paths):
 
             if len(entry_path) > 3:
                 checklist.ygb.append(entry_path[3])
-                
+
+            checklist.pathName = pathName 
             checklist.entry_items.append(entry_name)
             checklist.entry_ids.append(entry_id)
             checklist.entry_kb_ids.append(entry_kb)          

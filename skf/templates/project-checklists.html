@@ -155,14 +155,14 @@
 											
 											{% set count_asvs = count_asvs + 1 %}
 											<td class="select">
-												<select name="answer{{count_asvs_1|safe}}" class="form-control">
+												<select name="answer{{count_asvs|safe}}" class="form-control">
 													<option value="no">No</option>
 													<option value="yes">Yes</option>
 													<option value="na">N.A.</option>
 												</select>
-												<input type="hidden" name="vulnID{{count_asvs_1|safe}}" value="{{checklist.entry_kb_ids[counter_owasp]|safe}}"/>
-												<input type="hidden" name="questionID{{count_asvs_1|safe}}" value="{{checklist.entry_ids[counter_owasp]|safe}}"/>
-												<input type="hidden" name="listID{{count_asvs_1|safe}}" value="{{owasp_list_lvl1|safe}}" />
+												<input type="hidden" name="vulnID{{count_asvs|safe}}" value="{{checklist.entry_kb_ids[counter_owasp]|safe}}"/>
+												<input type="hidden" name="questionID{{count_asvs|safe}}" value="{{checklist.entry_ids[counter_owasp]|safe}}"/>
+												<input type="hidden" name="listID{{count_asvs|safe}}" value="{{checklist.pathName|safe}}" />
 											</td>
 											{% if checklist.ygb is defined %}
 											<td class="more">
