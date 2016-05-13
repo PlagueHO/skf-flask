@@ -1,6 +1,6 @@
 ﻿cls
 #configure as needed
-$outPut = "C:\temp\dumpFolder"
+$outPut = "C:\temp\dumpFolder\"
 $txtPath = "C:\Users\si553909.LDSTATDV\Documents\Security documents\PCI_DSS_v3-2.txt"
 $checklistPath = "C:\GitRepositories\skf-flask\skf\markdown\checklists"
 
@@ -28,14 +28,15 @@ $results | %{
                 }
                 else
                 {            
-                    $kb = "999"
+                    $kb = "1"
                 }                               
                
 
                 if(-not $entryAdded.Contains($_.Groups["identifier"].value) )
                 {                   
-                    $filename = "$increment--$checkListName--$kb--.md"                   
-                    New-Item -Path $outPut -Name $filename  -Value $_ -Force
+                    $filename = "$increment--$checkListName--$kb--.md" 
+                    $_.value | Out-File -FilePath $outPut$filename -Encoding ascii -Force              
+                   
                 
                     if($kb -ne 0)
                     {

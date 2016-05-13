@@ -1170,8 +1170,9 @@ def retrieve_checklist_details(pathName, full_file_paths):
             checklist.pathName = pathName 
             checklist.entry_items.append(entry_name)
             checklist.entry_ids.append(entry_id)
-            checklist.entry_kb_ids.append(entry_kb)          
+            checklist.entry_kb_ids.append(entry_kb)
             checklist.entry_content.append(Markup(markdown.markdown(filemd)))
+            #pdb.set_trace()              
             
             #Add knowledgebase information to the hover
             #All items must have a description or this will get out of sync when rendering
