@@ -1,8 +1,8 @@
 ﻿cls
 #configure as needed
-$outPut = "C:\temp\dumpFolder\"
-$txtPath = "C:\Users\si553909.LDSTATDV\Documents\Security documents\PCI_DSS_v3-2.txt"
-$checklistPath = "C:\GitRepositories\skf-flask\skf\markdown\checklists"
+$outPut = "C:\temp\"
+$txtPath = "C:\CodeRepository\skf-flask\content-generation\PCI_DSS_v3-2.txt"
+$checklistPath = "C:\CodeRepository\skf-flask\skf\markdown\checklists\ASVS"
 
 $checkListName ="PCIDSS32"
 $increment = 0
@@ -28,7 +28,7 @@ $results | %{
                 }
                 else
                 {            
-                    $kb = "1"
+                    $kb = "999"
                 }                               
                
 
