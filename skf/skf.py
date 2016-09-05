@@ -19,7 +19,8 @@
     along with this program. If not, see <http://www.gnu.org/licenses/>.
 """
 
-import os, markdown, datetime, string, base64, re, sys, re, requests, mimetypes, smtplib, pdb
+import os, markdown, datetime, string, base64, re, sys, re, requests, mimetypes, smtplib
+import pdb
 from OpenSSL import SSL, rand
 from docx import Document
 from BeautifulSoup import BeautifulSoup
@@ -30,19 +31,8 @@ from sqlite3 import dbapi2 as sqlite3
 from flask_bcrypt import Bcrypt
 from flask import Flask, request, session, g, redirect, url_for, abort, \
      render_template, flash, Markup, make_response
-
-class Checklist:
-    def __init__(self):
-        self.entry_items = []
-        self.entry_ids = []
-        self.entry_kb_ids = []
-        self.entry_content = []
-        self.knowledgebaseDescription = []
-        self.ygb = []
-        #TODO: Shift these values into a file/folder format like the rest of the data
-        self.checklistName = ""
-        self.checklistDescription = ""
-        self.pathName = ""
+     
+     
 
 # create the application
 app = Flask(__name__)
@@ -172,7 +162,7 @@ rand.cleanup()
 secret_key = rand.bytes(512)
 
 mimetypes.add_type('image/svg+xml', '.svg')
-bindaddr = '127.0.0.1';
+bindaddr = 'w12dvsona01.ldstatdv.net'#'127.0.0.1';
 
 # Load default config and override config from an environment variable
 # You can also replace password with static password:  PASSWORD='pass!@#example'
@@ -309,62 +299,64 @@ def first_login():
 @security
 def create_account():
     """validate the login data for access dashboard page"""
+   
     error = None
     db = get_db()
     db.commit()
     if request.method == 'POST':
-        """Username, password, token, email from form"""
-        token  = request.form['token']
+        """Username, password, email from form"""       
         email  = request.form['email']
         password  = request.form['password']
+        userName  = request.form['userName']
         
         #hash the password with Bcrypt, does autosalt
         hashed = bcrypt.generate_password_hash(password,14)
       
         #Do DB query also check for access
-        cur = db.execute('SELECT accessToken, userID, activated from users where email=? AND accessToken=?',
-                            [email, token])
+        cur = db.execute('SELECT userID FROM users WHERE email=?', [email])
         check = cur.fetchall()
-        for verify in check:
-            userID = verify[1]
-            if verify[2] == "false":
-                if str(verify[0]) == token:
-                            #update the counter and blocker table with new values 
-                    db.execute('UPDATE users SET access=?, password=?, activated=? WHERE accessToken=? AND userID=?',
-                               ["true", hashed, "true", token , userID])
-                    db.commit()
-                    #Insert record in counter table for the counting of malicious inputs
-                    db.execute('INSERT INTO counter (userID, countEvil, block) VALUES (?, ?, ?)',
-                                [userID, 0, 0])
-                    db.commit()
-                
-                    #Create standard group  for this user to assign himself to
-                    date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-                    db.execute('INSERT INTO groups (ownerID, groupName, timestamp) VALUES (?, ?, ?)',
-                                [userID, "privateGroup", date])
-                    db.commit()
-                
-                    #Select this groupID so we can assign the user to this group automatically
-                    cur = db.execute('SELECT groupID from groups where ownerID=?',
-                                [userID])
-                    group = cur.fetchall()
-                    for theID in group:
-                        groupID = theID[0]
-                            
-                    #Now we assign the user to the group
-                    date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-                    db.execute('INSERT INTO groupMembers (userID, groupID, ownerID) VALUES (?, ?, ?)',
-                                [userID, groupID, userID])
-                    db.commit()
-               
-        if not check:
-            #if not the right pin, the user account wil be deleted if not exsisting
-            db.execute('DElETE FROM users where email=? AND activated=?',
-                        [email, "false"])
+
+        #If greater than 0 then that user already exists. Currently no feedback to the UI
+        if len(check) <= 0 :           
+            
+            create_user(userName, email, '3', hashed)
+            #Now that a user is added we need to get the id to assign to groups etc
+            cur = db.execute('SELECT userID FROM users WHERE email=?', [email])
+            check = cur.fetchall()
+            userID = check[0]            
+    
+            #Create standard group for this user to assign himself to
+            date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+            db.execute('INSERT INTO groups (ownerID, groupName, timestamp) VALUES (?, ?, ?)', [userID, "privateGroup", date])
             db.commit()
-        
+    
+            #Select this groupID so we can assign the user to this group automatically
+            cur = db.execute('SELECT groupID FROM groups WHERE ownerID=?', [userID])
+            group = cur.fetchall()
+            for theID in group:
+                    groupID = theID[0]
+                            
+            #Now we assign the user to the group
+            date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+            db.execute('INSERT INTO groupMembers (userID, groupID, ownerID) VALUES (?, ?, ?)',  [userID, groupID, userID])
+            db.commit()        
         
         return render_template('login.html', error=error)
+
+
+def create_user(userName, email, privilegeID, hashedPassword):
+    """add a new users to database"""
+    
+    db = get_db()
+    valAlphaNum(userName, 1)
+    valNum(privilegeID, 12)
+    safe_userName = encodeInput(userName)
+    safe_email    = encodeInput(email)
+    safe_privID   = encodeInput(privilegeID)
+
+    db.execute('INSERT INTO users (privilegeID, userName, email, password, access, activated) VALUES (?, ?, ?, ?, ?, ?)', [safe_privID, safe_userName, safe_email, hashedPassword, "true", "true"])
+    db.commit()    
+ 
 
 """First comes the method for login"""
 @app.route('/login', methods=['GET', 'POST'])
@@ -378,10 +370,13 @@ def login():
         """Username and password from form"""
         username = request.form['username']
         password = request.form['password']
+
+        #Incase of admin lockout breakglass
+        #db.execute('UPDATE users SET access="true" WHERE userName=?', [username])
+        #db.commit()
         
         #Do DB query also check for access
-        cur = db.execute('SELECT access from users where userName=?',
-                            [username])
+        cur = db.execute('SELECT access FROM users WHERE userName=?', [username])
         check = cur.fetchall()
         for verify in check:
             if verify[0] == "false":
@@ -411,8 +406,7 @@ def login():
                 version = get_version()
                 
                 #Do DB query also check for access
-                cur = db.execute('SELECT groupID from groups WHERE groupName=? AND ownerID=?',
-                            ["privateGroup", session['userID']])
+                cur = db.execute('SELECT groupID from groups WHERE groupName=? AND ownerID=?', ["privateGroup", session['userID']])
                 groupID = cur.fetchall()
                 for entry in groupID:
                     session['privateGroup'] = entry[0]
@@ -423,43 +417,7 @@ def login():
 
 def countAttempts(counter):
     """We count hacking attempts and block the user if structural"""
-    if not session.get('logged_in'):
-        abort(401)
-    db = get_db()
-    cur = db.execute('SELECT * FROM counter where userID=?',
-                        [session['userID']])
-    entries = cur.fetchall()
-    for entry in entries:
-        counterDB = entry[2]
-        blockDB   = entry[3] 
-    
-    updateCount = counterDB + counter
-    updateBlock = blockDB   + counter
-    redirect = False
-    
-    if updateCount >= 3:
-        countUpdate = 0
-        redirect = True
-        
-    if updateBlock >=12:
-        redirect = True
-        db.execute('UPDATE users SET access=? WHERE userID=?',
-               ["false", session['userID']])
-        db.commit()
-        renderwhat = "/warning.html"
-    
-    #update the counter and blocker table with new values 
-    db.execute('UPDATE counter SET countEvil=?, block=? WHERE userID=?',
-        [updateCount, updateBlock, session['userID']])
-    db.commit()
-    
-    if redirect == True:
-        log( "Authenticated session destroyed by counter class", "SUCCESS", "LOW")
-        # TO-DO turn on again
-        #session.pop('logged_in', None)
-        #session.clear()
-    if redirect == False:
-        return True
+    return True
 
 """Here is the method for the database enforced privilege based authentication"""
 def permissions(fromFunction):
@@ -624,40 +582,6 @@ def knowledge_base():
         id_items.append(id_item)
     return render_template('knowledge-base.html', items=items, id_items=id_items)
 
-@app.route('/users-new', methods=['GET'])
-@security
-def user_new():
-    """show the create new project page"""
-    if not session.get('logged_in'):
-        log("User with no valid session tries access to page /user-new", "FAIL", "HIGH")
-        abort(401)     
-    permissions("manage")
-    return render_template('users-new.html', csrf_token=session['csrf_token'])
-    
-@app.route('/users-add', methods=['POST'])
-@security
-def users_add():
-    """add a new project to database"""
-    if not session.get('logged_in'):
-        log("User with no valid session tries access to page /users-add", "FAIL", "HIGH")
-        abort(401)
-    permissions("manage")
-    check_token()
-    db = get_db()
-    valAlphaNum(request.form['username'], 1)
-    valNum(request.form['privID'], 12)
-    valNum(request.form['pincode'], 12)
-    safe_userName = encodeInput(request.form['username'])
-    safe_email    = encodeInput(request.form['email'])
-    safe_privID   = encodeInput(request.form['privID'])
-    pincode       = encodeInput(request.form['pincode'])
-
-    db.execute('INSERT INTO users (privilegeID, userName, email, password, access, accessToken, activated) VALUES (?, ?, ?, ?, ?, ?, ?)',
-               [safe_privID, safe_userName, safe_email, "none", "false", pincode, "false"])
-    db.commit()
-    
-    return redirect(url_for('users_manage'))
-
 @app.route('/users-manage', methods=['GET'])
 @security
 def users_manage():
@@ -686,10 +610,8 @@ def user_access():
     whiteList("false,true", request.form['access'], 12)
     safe_userID   = encodeInput(request.form['userID'])
     safe_access = encodeInput(request.form['access'])
-    db.execute('UPDATE users SET access=? WHERE userID=?',
-           [safe_access, safe_userID])
-    db.execute('UPDATE counter SET countEvil=? AND block=? WHERE userID=?',
-           [0, 0, safe_userID])
+    db.execute('UPDATE users SET access=? WHERE userID=?',[safe_access, safe_userID])
+    db.execute('UPDATE counter SET countEvil=? AND block=? WHERE userID=?',[0, 0, safe_userID])
     db.commit()
     
     return redirect(url_for('users_manage'))
@@ -717,12 +639,10 @@ def group_add():
     valAlphaNum(request.form['groupName'], 3)
     safe_inputName = encodeInput(request.form['groupName'])
     date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-    db.execute('INSERT INTO groups (timestamp, groupName, ownerID) VALUES (?, ?, ?)',
-               [date, safe_inputName, session['userID']])
+    db.execute('INSERT INTO groups (timestamp, groupName, ownerID) VALUES (?, ?, ?)',[date, safe_inputName, session['userID']])
     db.commit()
     #than we select the most last group in order to check id
-    cur2 = db.execute('SELECT groupID from groups WHERE timestamp=? AND ownerID=?',
-                        [date, session['userID']])
+    cur2 = db.execute('SELECT groupID from groups WHERE timestamp=? AND ownerID=?', [date, session['userID']])
     group = cur2.fetchall()
     #Do actual loop
     for value in group:
@@ -743,8 +663,7 @@ def group_users():
         abort(401)
     permissions("edit")
     db = get_db()
-    cur = db.execute('SELECT * from groups where ownerID=? and groupName !=? ',
-                          [session['userID'], "privateGroup"])
+    cur = db.execute('SELECT * from groups where ownerID=? and groupName !=? ',[session['userID'], "privateGroup"])
     groups = cur.fetchall()
     
     """Select all users for adding to group"""
@@ -1059,7 +978,6 @@ def add_function():
 @app.route('/project-checklist-add', methods=['POST'])
 @security
 def add_checklist():
-    pdb.set_trace()
     """add project checklist"""
     if not session.get('logged_in'):
         log("User with no valid session tries access to page /project-checklist-add", "FAIL", "HIGH")
@@ -1097,6 +1015,10 @@ def add_checklist():
                         safe_listID = encodeInput(request.form[listID])
                         safe_pName = encodeInput(request.form['projectName'])
                         safe_id = encodeInput(request.form['projectID'])
+                        #print '        '+answerID+'="'+str(safe_answerID)+'",'
+                        #print '        '+questionID+'="'+str(safe_questionID)+'",'
+                        #print '        '+vulnID+'="'+str(safe_vulnID)+'",'
+                        #print '        '+listID+'="'+str(safe_listID)+'",'
                         date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
                         db = get_db()
                         db.execute('INSERT INTO questionlist (entryDate, answer, projectName, projectID, questionID, vulnID, listName, userID) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
@@ -1121,71 +1043,152 @@ def project_checklists(project_id):
                         [safe_id, session['userID']])
     row = cur.fetchall()
     prep = row[0]
-    projectName = prep[1] 
+    projectName = prep[1]
+    owasp_items_lvl1 = []
+    owasp_items_lvl1_ygb = []
+    owasp_ids_lvl1 = []
+    owasp_kb_ids_lvl1 = []
+    owasp_content_lvl1 = []
+    owasp_content_desc_lvl1 = []
+    owasp_items_lvl2 = []
+    owasp_items_lvl2_ygb = []
+    owasp_ids_lvl2 = []
+    owasp_kb_ids_lvl2 = []
+    owasp_content_lvl2 = []
+    owasp_content_desc_lvl2 = []
+    owasp_items_lvl3 = []
+    owasp_items_lvl3_ygb = []
+    owasp_ids_lvl3 = []
+    owasp_kb_ids_lvl3 = []
+    owasp_content_lvl3 = []
+    owasp_content_desc_lvl3 = []
+    custom_items = []
+    custom_ids = []
+    custom_kb_ids = []
+    custom_content = []
+    basic_items = []
+    basic_ids = []
+    basic_kb_ids = []
+    basic_content = []
+    advanced_items = []
+    advanced_ids = []
+    advanced_kb_ids = []
+    advanced_content = []
     full_file_paths = []
     full_file_paths = get_filepaths(os.path.join(app.root_path, "markdown/checklists"))
-    full_file_paths.sort()   
-
-    #TODO:Change this to read from folder to generate dynamic list
-    asvs1 = retrieve_checklist_details("ASVS-level-1", full_file_paths)
-    asvs1.checklistName = "OWASP ASVS Level 1"
-    asvs1.checklistDescription = "OWASP Application Security Verification Standard Level 1."
-    
-    asvs2 = retrieve_checklist_details("ASVS-level-2", full_file_paths)
-    asvs2.checklistName = "OWASP ASVS Level 2"
-    asvs2.checklistDescription = "OWASP Application Security Verification Standard Level 2."
-    
-    asvs3 = retrieve_checklist_details("ASVS-level-3", full_file_paths)
-    asvs3.checklistName = "OWASP ASVS Level 3"
-    asvs3.checklistDescription = "OWASP Application Security Verification Standard Level 3."
-    
-    pci = retrieve_checklist_details("PCIDSS32", full_file_paths)
-    pci.checklistName = "PCI DSS 3.2"
-    pci.checklistDescription = "PCI DSS 3.2 audit list"
-    
-    checklists = []
-    checklists.append(asvs1)
-    checklists.append(asvs2)
-    checklists.append(asvs3)
-    checklists.append(pci)
-    
-    return render_template('project-checklists.html', csrf_token=session['csrf_token'],  **locals())
-
-def retrieve_checklist_details(pathName, full_file_paths):
-    checklist = Checklist()
+    full_file_paths.sort()
     for path in full_file_paths:
-       found = path.find(pathName)
+       found = path.find("ASVS-level-1")
        if found != -1:
-            entry_path = path.split("--")            
-            entry_kb = entry_path[2]
-            entry_name = entry_path[1]
-            entry_id = get_num(entry_path[0])
-            entry_org_path = path
-            checklist.custom_list = pathName
-            filemd = open(entry_org_path, 'r').read()
-
-            if len(entry_path) > 3:
-                checklist.ygb.append(entry_path[3])
-
-            checklist.pathName = pathName 
-            checklist.entry_items.append(entry_name)
-            checklist.entry_ids.append(entry_id)
-            checklist.entry_kb_ids.append(entry_kb)
-            checklist.entry_content.append(Markup(markdown.markdown(filemd)))
-            #pdb.set_trace()              
-            
-            #Add knowledgebase information to the hover
-            #All items must have a description or this will get out of sync when rendering
+            owasp_org_path = path
+            owasp_list_lvl1 = "ASVS-level-1"
+            owasp_path_lvl1 = path.split("-")
+            owasp_kb = owasp_path_lvl1[7]
+            owasp_id = get_num(owasp_path_lvl1[1])
+            #owasp_items_lvl1.append(owasp_checklist_name)
+            owasp_ids_lvl1.append(owasp_id)
+            owasp_items_lvl1_ygb.append(owasp_path_lvl1[9])
+            owasp_kb_ids_lvl1.append(owasp_kb)
+            filemd = open(owasp_org_path, 'r').read()
+            owasp_content_lvl1.append(Markup(markdown.markdown(filemd)))
             full_file_paths_kb = get_filepaths(os.path.join(app.root_path, "markdown/knowledge_base"))
             for path in full_file_paths_kb:
                 org_path = path
                 path_kb = path.split("markdown")
                 path_vuln = get_num(path_kb[1])
-                if int(entry_kb) == int(path_vuln):
+                if int(owasp_kb) == int(path_vuln):
                     filemd = open(org_path, 'r').read()
                     description = filemd.split("**") 
-                    checklist.knowledgebaseDescription.append(description[2])                    
-    return checklist    
+                    owasp_content_desc_lvl1.append(description[2])
+    for path in full_file_paths:
+       found = path.find("ASVS-level-2")
+       if found != -1:
+            owasp_org_path = path
+            owasp_list_lvl2 = "ASVS-level-2"
+            owasp_path_lvl2 = path.split("-")
+            owasp_kb = owasp_path_lvl2[7]
+            owasp_id = get_num(owasp_path_lvl2[1])
+            #owasp_items_lvl2.append(owasp_checklist_name)
+            owasp_ids_lvl2.append(owasp_id)
+            owasp_kb_ids_lvl2.append(owasp_kb)
+            owasp_items_lvl2_ygb.append(owasp_path_lvl2[9])
+            filemd = open(owasp_org_path, 'r').read()
+            owasp_content_lvl2.append(Markup(markdown.markdown(filemd)))
+            full_file_paths_kb = get_filepaths(os.path.join(app.root_path, "markdown/knowledge_base"))
+            for path in full_file_paths_kb:
+                org_path = path
+                path_kb = path.split("markdown")
+                path_vuln = get_num(path_kb[1])
+                if int(owasp_kb) == int(path_vuln):
+                    filemd = open(org_path, 'r').read()
+                    description = filemd.split("**") 
+                    owasp_content_desc_lvl2.append(description[2])
+    for path in full_file_paths:
+       found = path.find("ASVS-level-3")
+       if found != -1:
+            owasp_org_path = path
+            owasp_list_lvl3 = "ASVS-level-3"
+            owasp_path_lvl3 = path.split("-")
+            owasp_kb = owasp_path_lvl3[7]
+            owasp_id = get_num(owasp_path_lvl3[1])
+            #owasp_items_lvl3.append(owasp_checklist_name)
+            owasp_ids_lvl3.append(owasp_id)
+            owasp_kb_ids_lvl3.append(owasp_kb)
+            owasp_items_lvl3_ygb.append(owasp_path_lvl3[9])
+            filemd = open(owasp_org_path, 'r').read()
+            owasp_content_lvl3.append(Markup(markdown.markdown(filemd)))
+            full_file_paths_kb = get_filepaths(os.path.join(app.root_path, "markdown/knowledge_base"))
+            for path in full_file_paths_kb:
+                org_path = path
+                path_kb = path.split("markdown")
+                path_vuln = get_num(path_kb[1])
+                if int(owasp_kb) == int(path_vuln):
+                    filemd = open(org_path, 'r').read()
+                    description = filemd.split("**") 
+                    owasp_content_desc_lvl3.append(description[2])
+    for path in full_file_paths:
+       found = path.find("CS_basic_audit")
+       if found != -1:
+            basic_org_path = path
+            basic_list = "CS_basic_audit"
+            basic_path = path.split("-")
+            basic_kb = basic_path[5]
+            basic_checklist_name = basic_path[3]
+            basic_id = get_num(basic_path[1])
+            basic_items.append(basic_checklist_name)
+            basic_ids.append(basic_id)
+            basic_kb_ids.append(basic_kb)
+            filemd = open(basic_org_path, 'r').read()
+            basic_content.append(Markup(markdown.markdown(filemd)))
+    for path in full_file_paths:
+       found = path.find("CS_advanced_audit")
+       if found != -1:
+            advanced_org_path = path
+            advanced_list = "CS_advanced_audit"
+            advanced_path = path.split("-")
+            advanced_kb = advanced_path[5]
+            advanced_name = advanced_path[3]
+            advanced_id = get_num(advanced_path[1])
+            advanced_items.append(advanced_name)
+            advanced_ids.append(advanced_id)
+            advanced_kb_ids.append(advanced_kb)
+            filemd = open(advanced_org_path, 'r').read()
+            advanced_content.append(Markup(markdown.markdown(filemd)))
+    for path in full_file_paths:
+       found = path.find("custom")
+       if found != -1:
+            custom_org_path = path
+            custom_list = "custom"
+            custom_path = path.split("-")
+            custom_kb = custom_path[5]
+            custom_name = custom_path[3]
+            custom_id = get_num(custom_path[1])
+            custom_items.append(custom_name)
+            custom_ids.append(custom_id)
+            custom_kb_ids.append(custom_kb)
+            filemd = open(custom_org_path, 'r').read()
+            custom_content.append(Markup(markdown.markdown(filemd)))
+    return render_template('project-checklists.html', csrf_token=session['csrf_token'],  **locals())
 
 @app.route('/results-checklists', methods=['GET'])
 @security
@@ -1545,11 +1548,14 @@ if __name__ == "__main__":
             ))
         if (str(sys.argv[i][2:]) == "saas"):
             bindaddr = '0.0.0.0'
-    if os.path.isfile('server.crt') == False: 
+    #Hardcoded certificate locations
+    certifcatePath = r'\ssl\Skf-SSL.crt'
+    certifcateKeyPath = r'ssl\Skf-SSL.key'
+    if os.path.isfile(certifcatePath) == False: 
        app.run(host=bindaddr, port=5443, ssl_context='adhoc')
     else:
        context = SSL.Context(SSL.TLSv1_METHOD)
-       context = ('server.crt', 'server.key')
+       context = (certifcatePath, certifcateKeyPath)
        app.run(host=bindaddr, port=5443, ssl_context=context)
 
 
