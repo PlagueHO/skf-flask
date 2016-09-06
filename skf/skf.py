@@ -40,6 +40,19 @@ app = Flask(__name__)
 """Set up bcrypt for passwords encrypting"""
 bcrypt = Bcrypt(app)
 
+class Checklist:
+     def __init__(self):
+        self.entry_items = []
+        self.entry_ids = []
+        self.entry_kb_ids = []
+        self.entry_content = []
+        self.knowledgebaseDescription = []
+        self.ygb = []
+        #TODO: Shift these values into a file/folder format like the rest of the data
+        self.checklistName = ""
+        self.checklistDescription = ""
+        self.pathName = ""
+
 def add_response_headers(headers={}):
     """This decorator adds the headers passed in to the response"""
     def decorator(f):
@@ -162,7 +175,7 @@ rand.cleanup()
 secret_key = rand.bytes(512)
 
 mimetypes.add_type('image/svg+xml', '.svg')
-bindaddr = 'w12dvsona01.ldstatdv.net'#'127.0.0.1';
+bindaddr = '127.0.0.1'
 
 # Load default config and override config from an environment variable
 # You can also replace password with static password:  PASSWORD='pass!@#example'
@@ -1015,10 +1028,6 @@ def add_checklist():
                         safe_listID = encodeInput(request.form[listID])
                         safe_pName = encodeInput(request.form['projectName'])
                         safe_id = encodeInput(request.form['projectID'])
-                        #print '        '+answerID+'="'+str(safe_answerID)+'",'
-                        #print '        '+questionID+'="'+str(safe_questionID)+'",'
-                        #print '        '+vulnID+'="'+str(safe_vulnID)+'",'
-                        #print '        '+listID+'="'+str(safe_listID)+'",'
                         date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
                         db = get_db()
                         db.execute('INSERT INTO questionlist (entryDate, answer, projectName, projectID, questionID, vulnID, listName, userID) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
@@ -1044,151 +1053,72 @@ def project_checklists(project_id):
     row = cur.fetchall()
     prep = row[0]
     projectName = prep[1]
-    owasp_items_lvl1 = []
-    owasp_items_lvl1_ygb = []
-    owasp_ids_lvl1 = []
-    owasp_kb_ids_lvl1 = []
-    owasp_content_lvl1 = []
-    owasp_content_desc_lvl1 = []
-    owasp_items_lvl2 = []
-    owasp_items_lvl2_ygb = []
-    owasp_ids_lvl2 = []
-    owasp_kb_ids_lvl2 = []
-    owasp_content_lvl2 = []
-    owasp_content_desc_lvl2 = []
-    owasp_items_lvl3 = []
-    owasp_items_lvl3_ygb = []
-    owasp_ids_lvl3 = []
-    owasp_kb_ids_lvl3 = []
-    owasp_content_lvl3 = []
-    owasp_content_desc_lvl3 = []
-    custom_items = []
-    custom_ids = []
-    custom_kb_ids = []
-    custom_content = []
-    basic_items = []
-    basic_ids = []
-    basic_kb_ids = []
-    basic_content = []
-    advanced_items = []
-    advanced_ids = []
-    advanced_kb_ids = []
-    advanced_content = []
+
     full_file_paths = []
     full_file_paths = get_filepaths(os.path.join(app.root_path, "markdown/checklists"))
-    full_file_paths.sort()
-    for path in full_file_paths:
-       found = path.find("ASVS-level-1")
-       if found != -1:
-            owasp_org_path = path
-            owasp_list_lvl1 = "ASVS-level-1"
-            owasp_path_lvl1 = path.split("-")
-            owasp_kb = owasp_path_lvl1[7]
-            owasp_id = get_num(owasp_path_lvl1[1])
-            #owasp_items_lvl1.append(owasp_checklist_name)
-            owasp_ids_lvl1.append(owasp_id)
-            owasp_items_lvl1_ygb.append(owasp_path_lvl1[9])
-            owasp_kb_ids_lvl1.append(owasp_kb)
-            filemd = open(owasp_org_path, 'r').read()
-            owasp_content_lvl1.append(Markup(markdown.markdown(filemd)))
-            full_file_paths_kb = get_filepaths(os.path.join(app.root_path, "markdown/knowledge_base"))
-            for path in full_file_paths_kb:
-                org_path = path
-                path_kb = path.split("markdown")
-                path_vuln = get_num(path_kb[1])
-                if int(owasp_kb) == int(path_vuln):
-                    filemd = open(org_path, 'r').read()
-                    description = filemd.split("**") 
-                    owasp_content_desc_lvl1.append(description[2])
-    for path in full_file_paths:
-       found = path.find("ASVS-level-2")
-       if found != -1:
-            owasp_org_path = path
-            owasp_list_lvl2 = "ASVS-level-2"
-            owasp_path_lvl2 = path.split("-")
-            owasp_kb = owasp_path_lvl2[7]
-            owasp_id = get_num(owasp_path_lvl2[1])
-            #owasp_items_lvl2.append(owasp_checklist_name)
-            owasp_ids_lvl2.append(owasp_id)
-            owasp_kb_ids_lvl2.append(owasp_kb)
-            owasp_items_lvl2_ygb.append(owasp_path_lvl2[9])
-            filemd = open(owasp_org_path, 'r').read()
-            owasp_content_lvl2.append(Markup(markdown.markdown(filemd)))
-            full_file_paths_kb = get_filepaths(os.path.join(app.root_path, "markdown/knowledge_base"))
-            for path in full_file_paths_kb:
-                org_path = path
-                path_kb = path.split("markdown")
-                path_vuln = get_num(path_kb[1])
-                if int(owasp_kb) == int(path_vuln):
-                    filemd = open(org_path, 'r').read()
-                    description = filemd.split("**") 
-                    owasp_content_desc_lvl2.append(description[2])
-    for path in full_file_paths:
-       found = path.find("ASVS-level-3")
-       if found != -1:
-            owasp_org_path = path
-            owasp_list_lvl3 = "ASVS-level-3"
-            owasp_path_lvl3 = path.split("-")
-            owasp_kb = owasp_path_lvl3[7]
-            owasp_id = get_num(owasp_path_lvl3[1])
-            #owasp_items_lvl3.append(owasp_checklist_name)
-            owasp_ids_lvl3.append(owasp_id)
-            owasp_kb_ids_lvl3.append(owasp_kb)
-            owasp_items_lvl3_ygb.append(owasp_path_lvl3[9])
-            filemd = open(owasp_org_path, 'r').read()
-            owasp_content_lvl3.append(Markup(markdown.markdown(filemd)))
-            full_file_paths_kb = get_filepaths(os.path.join(app.root_path, "markdown/knowledge_base"))
-            for path in full_file_paths_kb:
-                org_path = path
-                path_kb = path.split("markdown")
-                path_vuln = get_num(path_kb[1])
-                if int(owasp_kb) == int(path_vuln):
-                    filemd = open(org_path, 'r').read()
-                    description = filemd.split("**") 
-                    owasp_content_desc_lvl3.append(description[2])
-    for path in full_file_paths:
-       found = path.find("CS_basic_audit")
-       if found != -1:
-            basic_org_path = path
-            basic_list = "CS_basic_audit"
-            basic_path = path.split("-")
-            basic_kb = basic_path[5]
-            basic_checklist_name = basic_path[3]
-            basic_id = get_num(basic_path[1])
-            basic_items.append(basic_checklist_name)
-            basic_ids.append(basic_id)
-            basic_kb_ids.append(basic_kb)
-            filemd = open(basic_org_path, 'r').read()
-            basic_content.append(Markup(markdown.markdown(filemd)))
-    for path in full_file_paths:
-       found = path.find("CS_advanced_audit")
-       if found != -1:
-            advanced_org_path = path
-            advanced_list = "CS_advanced_audit"
-            advanced_path = path.split("-")
-            advanced_kb = advanced_path[5]
-            advanced_name = advanced_path[3]
-            advanced_id = get_num(advanced_path[1])
-            advanced_items.append(advanced_name)
-            advanced_ids.append(advanced_id)
-            advanced_kb_ids.append(advanced_kb)
-            filemd = open(advanced_org_path, 'r').read()
-            advanced_content.append(Markup(markdown.markdown(filemd)))
-    for path in full_file_paths:
-       found = path.find("custom")
-       if found != -1:
-            custom_org_path = path
-            custom_list = "custom"
-            custom_path = path.split("-")
-            custom_kb = custom_path[5]
-            custom_name = custom_path[3]
-            custom_id = get_num(custom_path[1])
-            custom_items.append(custom_name)
-            custom_ids.append(custom_id)
-            custom_kb_ids.append(custom_kb)
-            filemd = open(custom_org_path, 'r').read()
-            custom_content.append(Markup(markdown.markdown(filemd)))
+    full_file_paths.sort()   
+
+    #TODO:Change this to read from folder to generate dynamic list
+    asvs1 = retrieve_checklist_details("ASVS-level-1", full_file_paths)
+    asvs1.checklistName = "OWASP ASVS Level 1"
+    asvs1.checklistDescription = "OWASP Application Security Verification Standard Level 1."
+
+    asvs2 = retrieve_checklist_details("ASVS-level-2", full_file_paths)
+    asvs2.checklistName = "OWASP ASVS Level 2"
+    asvs2.checklistDescription = "OWASP Application Security Verification Standard Level 2."
+
+    asvs3 = retrieve_checklist_details("ASVS-level-3", full_file_paths)
+    asvs3.checklistName = "OWASP ASVS Level 3"
+    asvs3.checklistDescription = "OWASP Application Security Verification Standard Level 3."
+
+    pci = retrieve_checklist_details("PCIDSS32", full_file_paths)
+    pci.checklistName = "PCI DSS 3.2"
+    pci.checklistDescription = "PCI DSS 3.2 audit list"
+
+    checklists = []
+    checklists.append(asvs1)
+    checklists.append(asvs2)
+    checklists.append(asvs3)
+    checklists.append(pci)
+   
     return render_template('project-checklists.html', csrf_token=session['csrf_token'],  **locals())
+
+def retrieve_checklist_details(pathName, full_file_paths):
+    checklist = Checklist()    
+   
+    for path in full_file_paths:
+       found = path.find(pathName)
+       if found != -1:
+            entry_path = path.split("--")            
+            entry_kb = entry_path[2]
+            entry_name = entry_path[1]
+            entry_id = get_num(entry_path[0])
+            entry_org_path = path
+            checklist.custom_list = pathName
+            filemd = open(entry_org_path, 'r').read()
+
+            if len(entry_path) > 3:
+                checklist.ygb.append(entry_path[3])
+
+            checklist.pathName = pathName 
+            checklist.entry_items.append(entry_name)
+            checklist.entry_ids.append(entry_id)
+            checklist.entry_kb_ids.append(entry_kb)
+            checklist.entry_content.append(Markup(markdown.markdown(filemd)))
+            #pdb.set_trace()              
+            
+            #Add knowledgebase information to the hover
+            #All items must have a description or this will get out of sync when rendering
+            full_file_paths_kb = get_filepaths(os.path.join(app.root_path, "markdown/knowledge_base"))
+            for path in full_file_paths_kb:
+                  org_path = path
+                  path_kb = path.split("markdown")
+                  path_vuln = get_num(path_kb[1])
+                  if int(entry_kb) == int(path_vuln):
+                      filemd = open(org_path, 'r').read()
+                      description = filemd.split("**") 
+                      checklist.knowledgebaseDescription.append(description[2])                    
+    return checklist    
 
 @app.route('/results-checklists', methods=['GET'])
 @security
