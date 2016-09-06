@@ -245,23 +245,6 @@ def close_db(error):
     if hasattr(g, 'sqlite_db'):
         g.sqlite_db.close()
 
-def check_version():
-    try:
-        r = requests.get("http://raw.githubusercontent.com/blabla1337/skf-flask/master/setup.py")
-        items_remote = r.content.split(",") 
-        version_remote = items_remote[1]
-        version_remote = version_remote.replace(version_remote[:14], '')
-        version_remote = version_remote[:-1]
-        with open ("version.txt", "r") as myfile:
-            version_local = myfile.read().replace('\n', '')
-
-        if version_local == version_remote:
-            return True
-        else:
-            return False
-    except:
-        return False
-
 def get_version():
     with open ("version.txt", "r") as myfile:
         version_final = myfile.read().replace('\n', '')
@@ -296,9 +279,8 @@ def dashboard():
         log("User with no valid session tries access to page /dashboard", "FAIL", "HIGH")
         abort(401)
     permissions("read")
-    version_check = check_version()
-    version = get_version()
-    return render_template('dashboard.html', version=version, version_check=version_check)
+   
+    return render_template('dashboard.html')
 
 @app.route('/first-login', methods=['GET'])
 @security
