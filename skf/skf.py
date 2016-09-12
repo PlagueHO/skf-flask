@@ -70,13 +70,6 @@ def security(f):
     """This decorator passes multiple security headers and checks log file to block users"""
     return add_response_headers({'X-Frame-Options': 'deny', 'X-XSS-Protection': '1', 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'no-store, no-cache','Strict-Transport-Security': 'max-age=16070400; includeSubDomains', 'Server': 'Security Knowledge Framework'})(f)
 
-def check_token():
-    """Checks the submitted CSRF token"""
-    if not session.get('csrf_token') == request.form['csrf_token']:
-        log("User supplied not valid CSRF token", "FAIL", "HIGH")
-        session.clear()
-        return abort(500)(f)
-
 def generate_pass():
     chars = string.letters + string.digits + '+/'
     assert 256 % len(chars) == 0  # non-biased later modulo
@@ -245,6 +238,23 @@ def close_db(error):
     if hasattr(g, 'sqlite_db'):
         g.sqlite_db.close()
 
+def check_version():
+    try:
+        r = requests.get("http://raw.githubusercontent.com/blabla1337/skf-flask/master/setup.py")
+        items_remote = r.content.split(",") 
+        version_remote = items_remote[1]
+        version_remote = version_remote.replace(version_remote[:14], '')
+        version_remote = version_remote[:-1]
+        with open ("version.txt", "r") as myfile:
+            version_local = myfile.read().replace('\n', '')
+
+        if version_local == version_remote:
+            return True
+        else:
+            return False
+    except:
+        return False
+
 def get_version():
     with open ("version.txt", "r") as myfile:
         version_final = myfile.read().replace('\n', '')
@@ -312,13 +322,15 @@ def create_account():
         check = cur.fetchall()
 
         #If greater than 0 then that user already exists. Currently no feedback to the UI
-        if len(check) <= 0 :           
+        if len(check) <= 0 :
+            #pdb.set_trace()   
             
             create_user(userName, email, '3', hashed)
             #Now that a user is added we need to get the id to assign to groups etc
-            cur = db.execute('SELECT userID FROM users WHERE email=?', [email])
+            cur = db.execute('SELECT userID FROM users WHERE email=?', [encodeInput(email)])
             check = cur.fetchall()
-            userID = check[0]            
+            #TODO:Learn SQLite so i understand what the hell i just did in the below line
+            userID = check[0][0]            
     
             #Create standard group for this user to assign himself to
             date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -599,7 +611,7 @@ def user_access():
         log("User with no valid session tries access to page /assign-group", "FAIL", "HIGH")
         abort(401)
     permissions("manage")
-    check_token()
+    
     db = get_db()
     valNum(request.form['userID'], 12)
     whiteList("false,true", request.form['access'], 12)
@@ -629,7 +641,7 @@ def group_add():
         log("User with no valid session tries access to page /group-add", "FAIL", "HIGH")
         abort(401)
     permissions("edit")
-    check_token()
+    
     db = get_db()
     valAlphaNum(request.form['groupName'], 3)
     safe_inputName = encodeInput(request.form['groupName'])
@@ -680,7 +692,7 @@ def group_add_users():
         log("User with no valid session tries access to page /project-function-add", "FAIL", "HIGH")
         abort(401)
     permissions("edit")
-    check_token()    
+      
     valNum(request.form['groupName'], 12)     
     safe_groupID = encodeInput(request.form['groupName'])
 
@@ -716,7 +728,7 @@ def user_del():
         log("User with no valid session tries access to page /user-del", "FAIL", "HIGH")
         abort(401)
     permissions("delete")
-    check_token()
+   
     valNum(request.form['userID'], 12)
     
     safe_userID  = encodeInput(request.form['userID'])
@@ -750,7 +762,7 @@ def group_del():
         log("User with no valid session tries access to page /group-del", "FAIL", "HIGH")
         abort(401)
     permissions("manage")
-    check_token()
+   
     valNum(request.form['groupID'], 12)
     
     safe_groupID = encodeInput(request.form['groupID'])
@@ -779,7 +791,7 @@ def add_entry():
         log("User with no valid session tries access to page /project-add", "FAIL", "HIGH")
         abort(401)
     permissions("edit")
-    check_token()
+   
     db = get_db()
     valAlphaNum(request.form['inputName'], 1)
     valNum(request.form['inputVersion'], 1)
@@ -800,7 +812,7 @@ def assign_group():
         log("User with no valid session tries access to page /assign-group", "FAIL", "HIGH")
         abort(401)
     permissions("edit")
-    check_token()
+   
     db = get_db()
     valNum(request.form['projectID'], 12)
     valNum(request.form['groupID'], 12)
@@ -828,7 +840,7 @@ def project_del():
     permissions("delete")
     valNum(request.form['projectID'], 12)
     id = request.form['projectID']
-    check_token()
+   
     db = get_db()
     db.execute("DELETE FROM projects WHERE projectID=? AND userID=? AND ownerID=?",
                [id, session['userID'], session['userID']])
@@ -908,7 +920,7 @@ def function_del():
         log( "User with no valid session tries access to page /project-function-del", "FAIL", "HIGH")
         abort(401)
     permissions("delete")
-    check_token()
+   
     valNum(request.form['projectID'], 12)
     valNum(request.form['paramID'], 12)
     id = request.form['projectID']
@@ -934,7 +946,8 @@ def add_function():
         log("User with no valid session tries access to page /project-function-add", "FAIL", "HIGH")
         abort(401)
     permissions("edit")
-    check_token()
+    #pdb.set_trace()  
+    
     valNum(request.form['project_id'], 12)
     id = request.form['project_id']
     valAlphaNum(request.form['functionName'], 1)
@@ -978,7 +991,7 @@ def add_checklist():
         log("User with no valid session tries access to page /project-checklist-add", "FAIL", "HIGH")
         abort(401)
     permissions("edit")
-    check_token()
+   
     i = 1
     #We do valNum for projectID here because we need it in the comparison
     valNum(request.form['projectID'], 12)
@@ -1138,7 +1151,7 @@ def functions_del():
         log( "User with no valid session tries access to page /results-functions-del", "FAIL", "HIGH")
         abort(401)
     permissions("delete")
-    check_token()
+    
     valNum(request.form['projectID'], 12)
     safe_entryDate = encodeInput(request.form['entryDate'])
     safe_projectID = encodeInput(request.form['projectID'])
@@ -1163,7 +1176,7 @@ def checklists_del():
         log( "User with no valid session tries access to page /results-checklists-del", "FAIL", "HIGH")
         abort(401)
     permissions("delete")
-    check_token()
+    
     safe_entryDate = encodeInput(request.form['entryDate'])
     valNum(request.form['projectID'], 12)
     safe_projectID = encodeInput(request.form['projectID'])
