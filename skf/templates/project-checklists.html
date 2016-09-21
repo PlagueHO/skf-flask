@@ -66,7 +66,7 @@
 								<th><i class="fa fa-bullhorn"></i> Checklist</th>
 								<th><i class="fa fa-question-circle"></i> Description</th>
 								<th><i class="fa fa-bookmark"></i> Level</th>
-								<th><i class=" fa fa-edit"></i> Take list</th>
+								<th><i class="fa fa-edit"></i> Take list</th>
 							</tr>
 						</thead>
 						<tbody>
@@ -124,7 +124,14 @@
 											
 
 											{% else %}
-											<tr>
+
+											<tr
+													{% if checklist.is_selected[counter_owasp] == 'yes' %}class="checked"
+													{% elif checklist.is_selected[counter_owasp] == 'na' %} class="exclude"
+													{% endif %}>
+
+
+
 												<td>
 													{{entry|safe}}
 													{% if checklist.ygb is defined %}
@@ -157,8 +164,8 @@
 											<td class="select">
 												<select name="answer{{count_asvs|safe}}" class="form-control">
 													<option value="no">No</option>
-													<option value="yes">Yes</option>
-													<option value="na">N.A.</option>
+													<option value="yes"  {% if checklist.is_selected[counter_owasp] == 'yes' -%}selected="true"  {% endif %}>Yes</option>
+													<option value="na" {% if checklist.is_selected[counter_owasp] == "na" -%}selected="true"  {% endif %}>N.A.</option>
 												</select>
 												<input type="hidden" name="vulnID{{count_asvs|safe}}" value="{{checklist.entry_kb_ids[counter_owasp]|safe}}"/>
 												<input type="hidden" name="questionID{{count_asvs|safe}}" value="{{checklist.entry_ids[counter_owasp]|safe}}"/>

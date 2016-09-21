@@ -20,7 +20,6 @@
 """
 
 import os, markdown, datetime, string, base64, re, sys, re, requests, mimetypes, smtplib
-import pdb
 from OpenSSL import SSL, rand
 from docx import Document
 from BeautifulSoup import BeautifulSoup
@@ -52,6 +51,7 @@ class Checklist:
         self.checklistName = ""
         self.checklistDescription = ""
         self.pathName = ""
+        self.is_selected = []
 
 def add_response_headers(headers={}):
     """This decorator adds the headers passed in to the response"""
@@ -119,7 +119,7 @@ def blockUsers():
                 sys.exit('Due to to many FAILED logs in your logging file we have the suspicion your application has been under attack by hackers. Please check your log files to validate and take repercussions. After validation clear your log or simply change the FAIL items to another value.')            
                                 
 def valAlphaNum(value, countLevel):
-    match = re.findall(r"[^ a-zA-Z0-9_.-]", value)
+    match = re.findall(r"[^ a-zA-Z0-9_.\-@]", value)
     if match:
         log("User supplied not an a-zA-Z0-9 value", "FAIL", "MEDIUM")
         countAttempts(countLevel)
@@ -157,7 +157,6 @@ def whiteList(allowed, input, countlevel):
             bool = True
     if bool == False:
         log("User is tampering whitelist values", "FAIL", "HIGH")
-        countAttempts(countLevel)
         abort(401)
     if bool == True:
         return bool
@@ -1037,11 +1036,16 @@ def add_checklist():
 def project_checklists(project_id):
     """show the project checklists page"""
     if not session.get('logged_in'):
-        log( "User with no valid session tries access to page /project-checklists", "FAIL", "HIGH")
+        log("User with no valid session tries access to page /project-checklists", "FAIL", "HIGH")
         abort(401)
     permissions("read")
     valNum(project_id, 12)
     safe_id = int(project_id, 10)
+
+    asvs1_name = "ASVS-level-1"
+    asvs2_name = "ASVS-level-2"
+    asvs3_name = "ASVS-level-3"
+
     db = get_db()
     cur = db.execute('SELECT p.projectID, p.userID, p.groupID, p.projectName, p.projectVersion, p.projectDesc, p.ownerID, m.userID, m.groupID FROM projects as p JOIN groupMembers AS m ON m.groupID = p.groupID WHERE p.projectID=? AND m.userID=?',
                         [safe_id, session['userID']])
@@ -1051,35 +1055,51 @@ def project_checklists(project_id):
 
     full_file_paths = []
     full_file_paths = get_filepaths(os.path.join(app.root_path, "markdown/checklists"))
-    full_file_paths.sort()   
+    full_file_paths.sort()
 
-    #TODO:Change this to read from folder to generate dynamic list
-    asvs1 = retrieve_checklist_details("ASVS-level-1", full_file_paths)
+    asvs1 = retrieve_checklist_details(asvs1_name, full_file_paths, safe_id)
     asvs1.checklistName = "OWASP ASVS Level 1"
     asvs1.checklistDescription = "OWASP Application Security Verification Standard Level 1."
 
-    asvs2 = retrieve_checklist_details("ASVS-level-2", full_file_paths)
+    asvs2 = retrieve_checklist_details(asvs2_name, full_file_paths, safe_id)
     asvs2.checklistName = "OWASP ASVS Level 2"
     asvs2.checklistDescription = "OWASP Application Security Verification Standard Level 2."
 
-    asvs3 = retrieve_checklist_details("ASVS-level-3", full_file_paths)
+    asvs3 = retrieve_checklist_details(asvs3_name, full_file_paths, safe_id)
     asvs3.checklistName = "OWASP ASVS Level 3"
     asvs3.checklistDescription = "OWASP Application Security Verification Standard Level 3."
-
-    pci = retrieve_checklist_details("PCIDSS32", full_file_paths)
-    pci.checklistName = "PCI DSS 3.2"
-    pci.checklistDescription = "PCI DSS 3.2 audit list"
 
     checklists = []
     checklists.append(asvs1)
     checklists.append(asvs2)
     checklists.append(asvs3)
-    checklists.append(pci)
    
     return render_template('project-checklists.html', csrf_token=session['csrf_token'],  **locals())
 
-def retrieve_checklist_details(pathName, full_file_paths):
-    checklist = Checklist()    
+def retrieve_checklist_done_items(project_id, list_name):
+    result_dict ={}
+    db = get_db()
+    cur = db.execute(
+        'SELECT q.questionID, q.answer '
+        'FROM questionlist q '
+        'INNER JOIN  (SELECT questionID, MAX(entryDate)  AS LastDate '
+                           'FROM questionlist '
+                           'GROUP BY questionID) d '
+        'ON (q.questionID = d.questionID AND q.entryDate = d.LastDate) '
+        'AND q.projectID = ? '
+        'AND q.listName = ? ',
+        [project_id, list_name])
+    rows = cur.fetchall()
+
+    for row in rows:
+        result_dict[int(row[0])] = row[1]
+
+    return result_dict
+
+def retrieve_checklist_details(pathName, full_file_paths, project_id):
+    checklist = Checklist()
+
+    previously_selected = retrieve_checklist_done_items(project_id, pathName)
    
     for path in full_file_paths:
        found = path.find(pathName)
@@ -1098,9 +1118,12 @@ def retrieve_checklist_details(pathName, full_file_paths):
             checklist.pathName = pathName 
             checklist.entry_items.append(entry_name)
             checklist.entry_ids.append(entry_id)
+            if entry_id in previously_selected:
+                checklist.is_selected.append(previously_selected[entry_id])
+            else:
+                checklist.is_selected.append("no")
             checklist.entry_kb_ids.append(entry_kb)
             checklist.entry_content.append(Markup(markdown.markdown(filemd)))
-            #pdb.set_trace()              
             
             #Add knowledgebase information to the hover
             #All items must have a description or this will get out of sync when rendering
